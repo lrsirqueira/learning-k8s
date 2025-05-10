@@ -1,0 +1,2 @@
+Para Criar super user
+kubectl exec -it netbox python /opt/netbox/netbox/manage.py createsuperuser

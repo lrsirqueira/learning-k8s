@@ -1,0 +1,93 @@
+# --------> Inicializar o cluster Kubernetes
+sudo kubeadm init --pod-network-cidr=10.244.0.0/16 --apiserver-advertise-address=100.64.4.101
+
+Depois que eu instalei o comando acima no master, ele vai gerar os comandos para os workers fazer o Join
+Isso pode levar um tempo até a API estar em pé no master
+
+Após configurar o ambiente kubeclt, todos os nodes ficarão como not-ready porque precisamos instalar o Calico
+
+
+
+# --------> Instalar o Calico no Master
+kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml
+
+Para verificar:
+kubectl get pods -n kube-system
+kubectl get nodes
+
+
+
+# --------> Instalar o MetalLB Master
+# Aplicar manifesto do MetalLB
+kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.13.12/config/manifests/metallb-native.yaml
+
+# Aguardar até que todos os pods estejam rodando
+kubectl wait --namespace metallb-system \
+--for=condition=ready pod \
+--selector=app=metallb \
+--timeout=90s
+
+# -------> Instalar o Controller do Ingress do nginx
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.8.2/deploy/static/provider/cloud/deploy.yaml
+
+# --------> Configurar o MetalLB Master
+# Criar arquivo de configuração do MetalLB
+cat <<EOF > metallb-config.yaml
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: first-pool
+  namespace: metallb-system
+spec:
+  addresses:
+  - 100.64.4.200-100.64.4.210
+---
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: l2-advert
+  namespace: metallb-system
+spec:
+  ipAddressPools:
+  - first-pool
+EOF
+
+
+# --------> Criando uma aplicação de teste
+cat <<EOF > nginx-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+  labels:
+    app: nginx
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:latest
+        ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-service
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 80
+    targetPort: 80
+  selector:
+    app: nginx
+EOF
+
+

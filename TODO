@@ -1,0 +1,53 @@
+1 - Há alguma melhoria ou algo a ser alterado?
+Sim, algumas melhorias recomendadas:
+
+Persistência de dados: Não há volumes persistentes configurados para PostgreSQL e Redis, o que significa que os dados serão perdidos se os pods forem reiniciados.
+Segurança: As senhas estão diretamente nos manifestos. O ideal seria usar Kubernetes Secrets.
+Recursos: Você definiu limites de recursos apenas para o Redis, mas não para o Netbox e PostgreSQL.
+Redundância: Você está usando apenas uma réplica para cada serviço, o que não oferece alta disponibilidade.
+
+2 - Desse formato, eu tenho persistência dos dados que serão inseridos no Netbox?
+Não. A configuração atual não tem persistência de dados. Se os pods forem reiniciados ou o nó do Kubernetes falhar, todos os dados serão perdidos.
+Melhorias específicas que você pode implementar:
+
+Adicionar PersistentVolumes para PostgreSQL:
+
+yaml# PV para PostgreSQL
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+E adicioná-lo ao seu deployment:
+yamlvolumeMounts:
+- name: postgres-data
+  mountPath: /var/lib/postgresql/data
+volumes:
+- name: postgres-data
+  persistentVolumeClaim:
+    claimName: postgres-pvc
+
+Use Secrets para senhas:
+
+yamlapiVersion: v1
+kind: Secret
+metadata:
+  name: netbox-secrets
+type: Opaque
+stringData:
+  db_password: "netbox"
+  superuser_password: "admin"
+  secret_key: "4n9GzjG91fKZqCvY9mXo3TxFu7E3Wjq2FkU6Tj3jL3QoeuUYAMyZKtAZMD9ZK2OG"
+
+Adicione recursos para todos os componentes, similar ao que você fez para o Redis.
+Configure readiness/liveness probes para melhorar a confiabilidade.
+
+
+
+
+Como salvar minhas imagens dos Containers que estou criando em um lugar que eu possa compartilhar?
