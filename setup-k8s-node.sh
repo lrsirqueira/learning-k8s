@@ -45,6 +45,31 @@ $IP $HOSTNAME
 100.64.4.103 k8s-worker2
 EOF
 
+# 9. Alterar IP com base no Netplan atual
+echo "[9/9] Alterando IP fixo no arquivo Netplan..."
+
+NETPLAN_FILE=$(ls /etc/netplan/*.yaml | head -n 1)
+IFACE=$(ip -o -4 route show to default | awk '{print $5}')
+
+echo "Arquivo Netplan detectado: $NETPLAN_FILE"
+echo "Interface detectada: $IFACE"
+
+sudo tee "$NETPLAN_FILE" > /dev/null <<EOF
+network:
+  version: 2
+  renderer: networkd
+  ethernets:
+    $IFACE:
+      dhcp4: no
+      addresses:
+        - $IP/24
+      gateway4: 100.64.4.1
+      nameservers:
+        addresses: [1.1.1.1, 8.8.8.8]
+EOF
+
+sudo netplan apply
+
 # 3. Atualizar sistema
 echo "[3/9] Atualizando sistema..."
 sudo apt update && sudo apt upgrade -y
@@ -114,30 +139,5 @@ SSH_KEY="ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC2znAE9d4j8BeouUde7ZL9rUyBwmYAbzM
 mkdir -p ~/.ssh
 echo "$SSH_KEY" >> ~/.ssh/authorized_keys
 chmod 600 ~/.ssh/authorized_keys
-
-# 9. Alterar IP com base no Netplan atual
-echo "[9/9] Alterando IP fixo no arquivo Netplan..."
-
-NETPLAN_FILE=$(ls /etc/netplan/*.yaml | head -n 1)
-IFACE=$(ip -o -4 route show to default | awk '{print $5}')
-
-echo "Arquivo Netplan detectado: $NETPLAN_FILE"
-echo "Interface detectada: $IFACE"
-
-sudo tee "$NETPLAN_FILE" > /dev/null <<EOF
-network:
-  version: 2
-  renderer: networkd
-  ethernets:
-    $IFACE:
-      dhcp4: no
-      addresses:
-        - $IP/24
-      gateway4: 100.64.4.1
-      nameservers:
-        addresses: [1.1.1.1, 8.8.8.8]
-EOF
-
-sudo netplan apply
 
 echo "Configuração finalizada para o node: $HOSTNAME ($IP)"
